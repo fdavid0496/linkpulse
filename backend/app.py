@@ -1,6 +1,6 @@
 """
 LinkPulse - Backend (Flask)
-Parte de Persona 2: rutas principales del acortador.
+Parte de Rosmer Yepes: rutas principales del acortador.
 
 Responsabilidades de esta parte (segun division del proyecto):
 1. Ruta que recibe el link largo y genera un codigo corto.
@@ -16,13 +16,15 @@ que las rutas de abajo no tengan que cambiar.
 
 import random
 import string
+from datetime import datetime
 
 from flask import Flask, jsonify, redirect, request
 
 app = Flask(__name__)
 
 # --- "Base de datos" temporal en memoria ---
-# Estructura: { "codigo": {"url_original": str, "clicks": int} }
+# Estructura: { "codigo": {"url_original": str, "clicks": int, "historial": [...]} }
+# Cada entrada de "historial" es un dict: {"fecha": str, "navegador": str}
 # Persona 3: reemplazar esto por la coleccion de MongoDB.
 URLS_DB = {}
 
@@ -46,7 +48,7 @@ def guardar_url(codigo: str, url_original: str) -> None:
     Persona 3: esta funcion es el punto de reemplazo por un
     db.collection.insert_one({...}) de MongoDB.
     """
-    URLS_DB[codigo] = {"url_original": url_original, "clicks": 0}
+    URLS_DB[codigo] = {"url_original": url_original, "clicks": 0, "historial": []}
 
 
 def obtener_url(codigo: str):
@@ -86,15 +88,20 @@ def redirigir(codigo):
     if registro is None:
         return jsonify({"error": "Codigo no encontrado"}), 404
 
-    # Persona 3: aqui va el update_one para incrementar clicks en MongoDB.
+    # Persona 3: aqui va el update_one para incrementar clicks y hacer push
+    # del nuevo evento al arreglo "historial" en MongoDB.
     registro["clicks"] += 1
+    registro["historial"].append({
+        "fecha": datetime.now().isoformat(timespec="seconds"),
+        "navegador": request.headers.get("User-Agent", "desconocido"),
+    })
 
     return redirect(registro["url_original"])
 
 
 @app.route("/api/stats/<codigo>", methods=["GET"])
 def stats(codigo):
-    """Endpoint de apoyo (no forma parte del alcance original de Persona 2).
+    """Endpoint de apoyo (no forma parte del alcance original de Rosmer).
 
     Solo para pruebas propias mientras se desarrolla: permite consultar el
     numero de clics de un codigo sin depender del front de Persona 3.
@@ -108,6 +115,7 @@ def stats(codigo):
         "codigo": codigo,
         "url_original": registro["url_original"],
         "clicks": registro["clicks"],
+        "historial": registro["historial"],
     }), 200
 
 
